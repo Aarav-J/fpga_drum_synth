@@ -1,0 +1,5 @@
+build/
+*.fs
+*.json.bak
+*.log
+.DS_Store
