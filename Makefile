@@ -7,8 +7,9 @@
 #   make flash-rom  — write to flash (persistent)
 #   make clean      — remove build/
 
-DEVICE  := GW1NR-LV9QN88PC6/I5
-FAMILY  := GW1N-9C
+DEVICE     := GW1NR-LV9QN88PC6/I5   # full part number  → nextpnr-himbaechel
+PACKDEV    := GW1N-9C                 # exact family name → gowin_pack
+FAMILY     := GW1N-9C
 TOP     := top
 
 SRCS    := $(wildcard src/*.v)
@@ -41,7 +42,7 @@ $(ROUTED): $(JSON) $(CST)
 
 # 3. Pack bitstream
 $(BITFILE): $(ROUTED)
-	gowin_pack -d $(DEVICE) -o $@ $(ROUTED)
+	gowin_pack -d $(PACKDEV) -o $@ $(ROUTED)
 
 # Flash to SRAM (use during development — won't survive power cycle)
 flash: $(BITFILE)

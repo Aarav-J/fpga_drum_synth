@@ -11,14 +11,14 @@ module top (
     input  wire       clk,      // 27 MHz
     output wire [5:0] led       // active-low, 6 LEDs
 );
-
+    reg [5:0] led_state; 
     reg [23:0] counter;
     reg        state;           // 0 → LED off, 1 → LED on
 
     always @(posedge clk) begin
         if (counter == 24'd13_499_999) begin
             counter <= 24'd0;
-            state   <= ~state;
+            led_state <= led_state + 6'd1; // Increment LED state
         end else begin
             counter <= counter + 24'd1;
         end
@@ -26,6 +26,6 @@ module top (
 
     // LED[0] blinks; LED[1:5] held off.
     // Invert at the pin boundary — active-low hardware, active-high logic.
-    assign led = {5'b11111, ~state};
+    assign led = led_state ^ 6'b111111; // Invert for active-low LEDs
 
 endmodule
