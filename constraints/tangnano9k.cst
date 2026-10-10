@@ -32,10 +32,8 @@ IO_LOC  "btn[1]" 3; IO_PORT "btn[1]" PULL_MODE=UP;   // S2
 IO_LOC  "uart_tx" 17; IO_PORT "uart_tx" PULL_MODE=UP DRIVE=8;
 IO_LOC  "uart_rx" 18; IO_PORT "uart_rx" PULL_MODE=UP;
 
-// ── Audio output (PWM / GPIO) ─────────────────────────────────────────────────
-// Uncomment when you add audio output to your design.
-// Wire the chosen GPIO pin through a 100 Ω resistor + 10 µF cap to a 3.5 mm jack
-// for a crude low-pass filter suitable for square-wave output.
-// Any free header pin works; 25 is a convenient starting point.
-//
-// IO_LOC  "audio_out" 25; IO_PORT "audio_out" IO_TYPE=LVCMOS33 DRIVE=8;
+// ── I2S audio (PCM5102A DAC) ──────────────────────────────────────────────────
+// VCC → 3.3V, GND → GND, FMT → GND, XSMT → 3.3V, SCK → GND
+IO_LOC  "bck"  26; IO_PORT "bck"  IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "lrck" 27; IO_PORT "lrck" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "din"  28; IO_PORT "din"  IO_TYPE=LVCMOS33 DRIVE=8;

@@ -1,88 +1,95 @@
-// Step 2: Button input with debounce
+// Step 5: Multiple musical notes
 //
-// S1 (btn[0], pin 4) — increment counter
-// S2 (btn[1], pin 3) — reset counter
-// LED[5:0]           — display counter in binary (active-low)
+// S1 cycles through the C major scale (C4 → C5).
+// LEDs show the current note index in binary on LED[2:0].
 //
-// Buttons are active-low (pulled to 3V3; pressed = 0).
-// Without debounce, one physical press reads as dozens of edges
-// as the contacts bounce for ~1-5 ms.
+// Half-period formula: 27_000_000 / (2 * frequency)
 //
-// Debounce strategy: the input must hold its new value for DEBOUNCE
-// cycles before we accept it as a clean transition.
-// 27_000 cycles @ 27 MHz = 1 ms — enough for any mechanical button.
+//   Note   Freq (Hz)   Half-period
+//   C4     261.63      51_603
+//   D4     293.66      45_977
+//   E4     329.63      40_955
+//   F4     349.23      38_657
+//   G4     392.00      34_439
+//   A4     440.00      30_682
+//   B4     493.88      27_335
+//   C5     523.25      25_801
 
 module top (
     input  wire       clk,
-    input  wire [1:0] btn,   // active-low: 0 = pressed, 1 = released
-    output wire [5:0] led    // active-low: 0 = lit,     1 = off
+    input  wire [1:0] btn,   // S1 = btn[0]: cycle note
+    output wire [5:0] led,
+    output wire       bck,
+    output wire       lrck,
+    output wire       din
 );
 
-    // ── Debounce ──────────────────────────────────────────────────────────
-    // One debounce block per button.
-    // btn_clean tracks the stable (settled) state of the button.
-    // btn_prev is btn_clean delayed one cycle — used for edge detection.
+    // ── Debounce S1 ───────────────────────────────────────────────────────
+    localparam DEBOUNCE = 27_000;
 
-    localparam DEBOUNCE = 27_000; // 1 ms at 27 MHz
-
-    // S1 — btn[0]
-    reg [14:0] db0;                   // 15 bits holds 0..27_000
-    reg        s1_clean = 1'b1;       // initialise to "not pressed"
-    reg        s1_prev  = 1'b1;
+    reg [14:0] db0;
+    reg        s1_clean = 1'b1, s1_prev = 1'b1;
 
     always @(posedge clk) begin
         s1_prev <= s1_clean;
-
-        if (btn[0] == s1_clean) begin
-            db0 <= 0;                 // input matches current state — stable
-        end else if (db0 == DEBOUNCE - 1) begin
-            s1_clean <= btn[0];       // held long enough — accept new state
+        if (btn[0] == s1_clean)
+            db0 <= 0;
+        else if (db0 == DEBOUNCE - 1) begin
+            s1_clean <= btn[0];
             db0      <= 0;
-        end else begin
-            db0 <= db0 + 1;           // still counting settle time
-        end
+        end else
+            db0 <= db0 + 1;
     end
 
-    // S2 — btn[1]
-    reg [14:0] db1;
-    reg        s2_clean = 1'b1;
-    reg        s2_prev  = 1'b1;
+    wire s1_press = s1_prev & ~s1_clean;
 
-    always @(posedge clk) begin
-        s2_prev <= s2_clean;
+    reg [2:0] note;   // 0..7, wraps automatically
 
-        if (btn[1] == s2_clean) begin
-            db1 <= 0;
-        end else if (db1 == DEBOUNCE - 1) begin
-            s2_clean <= btn[1];
-            db1      <= 0;
-        end else begin
-            db1 <= db1 + 1;
-        end
-    end
+    always @(posedge clk)
+        if (s1_press) note <= note + 1;
+    
 
-    // ── Edge detection ────────────────────────────────────────────────────
-    // Falling edge on the clean signal = button pressed.
-    // s1_prev=1, s1_clean=0 → the button just settled into "pressed".
+    reg [31:0] tuning_word; 
+    always @(*) begin 
+        case (note)
+           3'd0: tuning_word = 32'd41_648_698;  // C4
+           3'd1: tuning_word = 32'd46_762_507;  // D4
+           3'd2: tuning_word = 32'd52_496_838;  // E4
+           3'd3: tuning_word = 32'd55_620_560;  // F4
+           3'd4: tuning_word = 32'd62_393_524;  // G4
+           3'd5: tuning_word = 32'd70_041_785;  // A4
+           3'd6: tuning_word = 32'd78_631_077;  // B4
+           3'd7: tuning_word = 32'd83_297_396;  // C5
+        endcase
+    end 
 
-    wire s1_press = s1_prev & ~s1_clean;   // S1 fell  (1→0)
-    wire s2_press = s2_prev & ~s2_clean;   // S2 fell  (1→0)
 
-    // ── Counter ───────────────────────────────────────────────────────────
-    reg [5:0] count;
+    wire [15:0] sample; 
+    dds u_dds ( 
+        .clk (clk), 
+        .tuning_word(tuning_word), 
+        .sample(sample)
+    );
+    // ── I2S transmitter ───────────────────────────────────────────────────
+    wire load;
 
-    always @(posedge clk) begin
-        if (s2_press)
-            count <= 6'd0;            // S2: reset
-        else if (s1_press)
-            count <= count + 6'd1;    // S1: increment (wraps 63→0)
-    end
+    i2s_tx #(
+        .CLK_FREQ   (27_000_000),
+        .SAMPLE_RATE(48_000),
+        .DATA_WIDTH (16)
+    ) u_i2s (
+        .clk  (clk),
+        .left (sample),
+        .right(sample),
+        .load (load),
+        .bck  (bck),
+        .lrck (lrck),
+        .din  (din)
+    );
 
-    // ── Output ────────────────────────────────────────────────────────────
-    // Invert once at the pin boundary.
-    // count=0  → led=6'b111111 → all off
-    // count=1  → led=6'b111110 → LED0 on
-    // count=63 → led=6'b000000 → all on
-    assign led = ~count;
+    // ── LEDs — note index in binary ───────────────────────────────────────
+    // LED0 = bit0, LED1 = bit1, LED2 = bit2 of note index
+    // C4 = 000, D4 = 001, ... C5 = 111
+    assign led = ~{3'b000, note};
 
 endmodule
