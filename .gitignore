@@ -3,3 +3,4 @@ build/
 *.json.bak
 *.log
 .DS_Store
+__pycache__*
