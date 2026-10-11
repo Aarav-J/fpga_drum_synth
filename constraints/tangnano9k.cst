@@ -37,3 +37,16 @@ IO_LOC  "uart_rx" 18; IO_PORT "uart_rx" PULL_MODE=UP;
 IO_LOC  "bck"  26; IO_PORT "bck"  IO_TYPE=LVCMOS33 DRIVE=8;
 IO_LOC  "lrck" 27; IO_PORT "lrck" IO_TYPE=LVCMOS33 DRIVE=8;
 IO_LOC  "din"  28; IO_PORT "din"  IO_TYPE=LVCMOS33 DRIVE=8;
+
+// ── HDMI (DVI-compatible, video only) ────────────────────────────────────────
+// Pin pairs verified against stephenkingston/tang-nano-9k hdmi/common/tangnano9k.cst
+// and Sipeed hdmi/src/hdmi.cst (both map these eight pins identically).
+// Each pair uses PULL_MODE=NONE — no pull resistors on differential lines.
+IO_LOC  "tmds_clk_p" 69; IO_PORT "tmds_clk_p" PULL_MODE=NONE DRIVE=8;
+IO_LOC  "tmds_clk_n" 68; IO_PORT "tmds_clk_n" PULL_MODE=NONE DRIVE=8;
+IO_LOC  "tmds_d_p[0]" 71; IO_PORT "tmds_d_p[0]" PULL_MODE=NONE DRIVE=8;
+IO_LOC  "tmds_d_n[0]" 70; IO_PORT "tmds_d_n[0]" PULL_MODE=NONE DRIVE=8;
+IO_LOC  "tmds_d_p[1]" 73; IO_PORT "tmds_d_p[1]" PULL_MODE=NONE DRIVE=8;
+IO_LOC  "tmds_d_n[1]" 72; IO_PORT "tmds_d_n[1]" PULL_MODE=NONE DRIVE=8;
+IO_LOC  "tmds_d_p[2]" 75; IO_PORT "tmds_d_p[2]" PULL_MODE=NONE DRIVE=8;
+IO_LOC  "tmds_d_n[2]" 74; IO_PORT "tmds_d_n[2]" PULL_MODE=NONE DRIVE=8;
