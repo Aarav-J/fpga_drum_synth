@@ -21,6 +21,8 @@
 //
 // LEDs:
 //   [2:0] — current sequencer step (0-15, lower 3 bits)
+//           NOTE: [0] is temporarily overridden by the PicoRV32 bring-up
+//           test (cpu_led[0]) — see the LED section below.
 //   [5:3] — current note index
 
 module top (
@@ -299,10 +301,89 @@ module top (
         .din  (din)
     );
 
+    // ── PicoRV32 CPU — bring-up milestone 1 ─────────────────────────────────
+    // Boots from 4 KB program RAM (cpu_ram.v) loaded from firmware/firmware.hex
+    // at synthesis time. Only a single LED debug register is wired up so far
+    // (see cpu_bus.v) — this exists purely to prove the toolchain, memory
+    // map, and CPU execution all work end-to-end before milestone 2 wires
+    // the CPU into the note/sequencer control path for song playback.
+    //
+    // Runs on the same 27 MHz clock as everything else — no separate clock
+    // domain, no synchronizers needed for this core.
+    // PicoRV32 needs resetn actually pulsed low at least once — its reset
+    // logic (cpu_state <= cpu_state_fetch, reg_pc <= PROGADDR_RESET) only
+    // runs inside `if (!resetn)`. Same pattern as dvi_tx.v's rst_cnt: hold
+    // low for a few clock cycles after configuration, then release.
+    reg  [3:0]  cpu_rst_cnt = 4'd0;
+    wire        cpu_resetn = cpu_rst_cnt[3];
+    always @(posedge clk)
+        if (!cpu_rst_cnt[3])
+            cpu_rst_cnt <= cpu_rst_cnt + 1'b1;
+    wire        cpu_mem_valid, cpu_mem_instr, cpu_mem_ready;
+    wire [31:0] cpu_mem_addr, cpu_mem_wdata, cpu_mem_rdata;
+    wire [3:0]  cpu_mem_wstrb;
+    wire [5:0]  cpu_led;
+
+    picorv32 #(
+        .ENABLE_MUL     (0),
+        .ENABLE_DIV     (0),
+        .ENABLE_IRQ     (0),
+        .ENABLE_IRQ_QREGS(0),
+        .BARREL_SHIFTER (0),
+        .PROGADDR_RESET (32'h0000_0000),
+        .STACKADDR      (32'h0000_1000)
+    ) u_cpu (
+        .clk      (clk),
+        .resetn   (cpu_resetn),
+        .trap     (),
+        .mem_valid(cpu_mem_valid),
+        .mem_instr(cpu_mem_instr),
+        .mem_ready(cpu_mem_ready),
+        .mem_addr (cpu_mem_addr),
+        .mem_wdata(cpu_mem_wdata),
+        .mem_wstrb(cpu_mem_wstrb),
+        .mem_rdata(cpu_mem_rdata),
+        .mem_la_read (),
+        .mem_la_write(),
+        .mem_la_addr (),
+        .mem_la_wdata(),
+        .mem_la_wstrb(),
+        .pcpi_valid(),
+        .pcpi_insn (),
+        .pcpi_rs1  (),
+        .pcpi_rs2  (),
+        .pcpi_wr   (1'b0),
+        .pcpi_rd   (32'b0),
+        .pcpi_wait (1'b0),
+        .pcpi_ready(1'b0),
+        .irq       (32'b0),
+        .eoi       (),
+        .trace_valid(),
+        .trace_data ()
+    );
+
+    cpu_bus u_cpu_bus (
+        .clk      (clk),
+        .resetn   (cpu_resetn),
+        .mem_valid(cpu_mem_valid),
+        .mem_instr(cpu_mem_instr),
+        .mem_ready(cpu_mem_ready),
+        .mem_addr (cpu_mem_addr),
+        .mem_wdata(cpu_mem_wdata),
+        .mem_wstrb(cpu_mem_wstrb),
+        .mem_rdata(cpu_mem_rdata),
+        .cpu_led  (cpu_led)
+    );
+
     // ── LEDs ──────────────────────────────────────────────────────────────
     // [2:0] = lower 3 bits of current step (blinks through 0-7 twice per bar)
     // [5:3] = current note index
-    assign led = ~{note, step_out[2:0]};
+    //
+    // TEMPORARY bring-up override: ALL 6 LEDs show cpu_led directly, so
+    // there's no ambiguity with the sequencer's step/note LEDs while
+    // debugging the CPU. Revert to `~{note, step_out[2:0]}` once milestone 1
+    // is confirmed working.
+    assign led = ~cpu_led;
 
     // ── HDMI sequencer display ────────────────────────────────────────────
     // Transfer sequencer state into the pixel clock domain with 2-FF
@@ -440,7 +521,7 @@ module top (
             begin vr <= 8'h66; vg <= 8'haa; vb <= 8'hff; end
         if (in_volume_bar)
             begin vr <= 8'hff; vg <= 8'hff; vb <= 8'hff; end
-        end
+    end
 
 
     dvi_tx #(.PIPE(1)) u_dvi (
